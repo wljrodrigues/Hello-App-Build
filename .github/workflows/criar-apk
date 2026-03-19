@@ -1,0 +1,132 @@
+name: Android Build (WebView PRO)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: WebAppPro
+      APP_ID: com.webapppro.app
+      APP_URL: https://seusite.com
+
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 🔥 Criar projeto
+      - name: Create project
+        run: |
+          mkdir app && cd app
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+          # HTML base com loading
+          cat <<EOF > index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body {
+                margin: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100vh;
+                font-family: Arial;
+                background: #ffffff;
+              }
+            </style>
+          </head>
+          <body>
+            <h2>Carregando...</h2>
+          </body>
+          </html>
+          EOF
+
+          npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
+          npx cap add android
+          npx cap sync android
+
+      # 🔧 Configurar WebView nativo
+      - name: Configure Android WebView
+        run: |
+          FILE=app/android/app/src/main/java/com/webapppro/app/MainActivity.java
+
+          cat <<EOF > $FILE
+          package com.webapppro.app;
+
+          import android.os.Bundle;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebSettings;
+          import android.view.KeyEvent;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+
+              private WebView webView;
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  webView = new WebView(this);
+                  setContentView(webView);
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+
+                  webView.setWebViewClient(new WebViewClient());
+
+                  webView.loadUrl("${APP_URL}");
+              }
+
+              // botão voltar
+              @Override
+              public boolean onKeyDown(int keyCode, KeyEvent event) {
+                  if ((keyCode == KeyEvent.KEYCODE_BACK) && webView.canGoBack()) {
+                      webView.goBack();
+                      return true;
+                  }
+                  return super.onKeyDown(keyCode, event);
+              }
+          }
+          EOF
+
+      # 🔐 Keystore
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/android/app/keystore.jks
+
+      - name: Build APK
+        working-directory: app/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=app/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: webview-pro-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
