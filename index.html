@@ -2,12 +2,22 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- 🔥 ESSENCIAL para apps mobile -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
     <title>BUSCAS - Explorador de Camadas</title>
-    <link rel="stylesheet" href=".styles.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+    <!-- ✅ Caminhos corrigidos -->
+    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./assets/leaflet/leaflet.css">
+
+    <!-- 🌐 fallback CDN (caso não tenha local) -->
+    <!-- <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" /> -->
+
 </head>
 <body>
+
     <div class="container">
         <header class="header">
             <h1>BUSCAS - Explorador de Camadas</h1>
@@ -19,6 +29,7 @@
                 <span class="btn-icon">🔄</span>
                 Carregar Camadas
             </button>
+
             <div class="search-box">
                 <input type="text" id="searchInput" placeholder="Buscar camadas...">
                 <span class="search-icon">🔍</span>
@@ -50,7 +61,14 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script type="module" src=".main.js"></script>
+    <!-- ✅ JS local (melhor para APK) -->
+    <script src="./assets/leaflet/leaflet.js"></script>
+
+    <!-- 🌐 fallback CDN -->
+    <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> -->
+
+    <!-- ✅ Caminho corrigido -->
+    <script type="module" src="./main.js"></script>
+
 </body>
 </html>
