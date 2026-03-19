@@ -18,35 +18,59 @@
 </head>
 <body>
 
-    <!-- 🔥 Splash / Loading -->
-    <div id="app-loader">
-        <div class="loader-content">
+    
+
+    <div class="container">
+        <header class="header">
+            <h1>BUSCAS - Explorador de Camadas</h1>
+            <p>Explore e baixe camadas do servidor WMS público</p>
+        </header>
+
+        <div class="controls">
+            <button id="loadLayers" class="btn-primary">
+                <span class="btn-icon">🔄</span>
+                Carregar Camadas
+            </button>
+
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Buscar camadas...">
+                <span class="search-icon">🔍</span>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-item">
+                <span class="stat-number" id="totalLayers">0</span>
+                <span class="stat-label">Camadas Encontradas</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="filteredLayers">0</span>
+                <span class="stat-label">Camadas Exibidas</span>
+            </div>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">
             <div class="spinner"></div>
-            <p>Carregando aplicação...</p>
+            <p>Carregando camadas do servidor...</p>
+        </div>
+
+        <div class="error" id="error" style="display: none;">
+            <p>Erro ao carregar camadas. Verifique sua conexão ou tente novamente.</p>
+        </div>
+
+        <div class="layers-container" id="layersContainer" style="display: none;">
+            <div class="layers-grid" id="layersGrid"></div>
         </div>
     </div>
 
-    <!-- 📡 Tela offline -->
-    <div id="offline-screen" style="display:none;">
-        <div class="offline-box">
-            <h2>📡 Sem conexão</h2>
-            <p>Verifique sua internet e tente novamente.</p>
-            <button onclick="retryConnection()">Tentar novamente</button>
-        </div>
-    </div>
+    <!-- ✅ JS local (melhor para APK) -->
+    <script src="./assets/leaflet/leaflet.js"></script>
 
-    <!-- ✅ App -->
-    <div id="app" style="display:none;">
-        <div class="container">
-            <header class="header">
-                <h1>BUSCAS - Explorador de Camadas</h1>
-                <p>Explore e baixe camadas do servidor WMS público</p>
-            </header>
+    <!-- 🌐 fallback CDN -->
+    <!-- <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script> -->
 
-            <!-- (resto do seu HTML permanece igual) -->
-
-        </div>
-    </div>
+    <!-- ✅ Caminho corrigido -->
+    <script type="module" src="./main.js"></script>
 
 </body>
 </html>

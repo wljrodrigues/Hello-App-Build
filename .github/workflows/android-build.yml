@@ -1,4 +1,4 @@
-name: Android Build (HTML PRO - Blindado v3)
+name: Android Build (HTML PRO - Blindado v4)
 
 on:
   workflow_dispatch:
@@ -61,85 +61,84 @@ jobs:
           npx cap init "$APP_NAME" "$APP_ID" --web-dir "www"
           npx cap add android
 
-      # 🎨 Gerar ícone e splash automaticamente
+      # 🎨 Gerar ícones e splash
       - name: Generate icons and splash
         run: |
           if [ -d "assets" ]; then
-            echo "🎨 Gerando ícones e splash..."
+            echo "🎨 Gerando assets..."
             npx @capacitor/assets generate --android
           else
-            echo "⚠️ Pasta assets não encontrada, pulando..."
+            echo "⚠️ Pasta assets não encontrada"
           fi
 
-      # 🔄 Sync após assets (ORDEM CORRETA)
+      # 🔄 Sync Capacitor
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # 🔐 Validar SECRET antes de usar
+      # 🔐 Validar secret
       - name: Validate KEYSTORE_BASE64
         run: |
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "❌ ERRO: SECRET KEYSTORE_BASE64 não está definido!"
+            echo "❌ SECRET KEYSTORE_BASE64 não definido!"
             exit 1
-          else
-            echo "✅ SECRET KEYSTORE_BASE64 carregado"
           fi
 
-      # 🔐 Keystore blindada
-      - name: Setup Keystore (Validate + Safe)
+      # 🔐 Keystore
+      - name: Setup Keystore
         run: |
-          echo "🔐 Decodificando keystore..."
-
           mkdir -p android/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
 
-          if [ ! -f "android/app/keystore.jks" ]; then
-            echo "❌ Keystore não encontrada!"
-            exit 1
-          fi
-
           SIZE=$(stat -c%s android/app/keystore.jks)
           if [ "$SIZE" -lt 1000 ]; then
-            echo "❌ Keystore inválida ou vazia!"
+            echo "❌ Keystore inválida!"
             exit 1
           fi
 
-          echo "✅ Keystore válida ($SIZE bytes)"
+          echo "✅ Keystore OK ($SIZE bytes)"
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      # 🎨 Customização visual (cores do app)
-      - name: Customize app colors
+      # 🎨 Cor do app
+      - name: Customize colors
         run: |
           sed -i 's/#6200ee/#0f172a/g' android/app/src/main/res/values/colors.xml || true
 
-      # 🔍 Debug opcional
+      # 🔍 Debug
       - name: Debug files
-        run: |
-          echo "📂 android/app:"
-          ls -la android/app
+        run: ls -la android/app
 
-      # 🚀 Build APK (ABSOLUTE PATH FIX)
-      - name: Build APK (Final Safe)
+      # 🚀 Build AAB (PLAY STORE)
+      - name: Build AAB (Release)
         working-directory: android
         run: |
-          echo "🚀 Iniciando build..."
-
           KEYSTORE_PATH=$(realpath app/keystore.jks)
 
-          echo "📁 Keystore: $KEYSTORE_PATH"
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
-          if [ ! -f "$KEYSTORE_PATH" ]; then
-            echo "❌ ERRO: Keystore não encontrada!"
-            exit 1
-          fi
+      # 🚀 Build APK (opcional)
+      - name: Build APK (Release)
+        working-directory: android
+        run: |
+          KEYSTORE_PATH=$(realpath app/keystore.jks)
 
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      # 📦 Upload AAB
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
 
       # 📦 Upload APK
       - name: Upload APK
