@@ -1,4 +1,4 @@
-name: Android Build (HTML Puro)
+name: Android Build (HTML Puro - Corrigido)
 
 on:
   workflow_dispatch:
@@ -17,56 +17,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 🔹 Node (necessário pro Capacitor)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
-      # 🔹 Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
-      # 🔹 Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 🔥 Criar package.json (sempre, HTML puro precisa)
-      - name: Init Node project
-        run: npm init -y
-
-      # 🔥 Instalar Capacitor
-      - name: Install Capacitor
-        run: npm install @capacitor/core @capacitor/cli @capacitor/android
-
-      # 🔍 Garantir que existe index.html
-      - name: Check index.html
+      # 🔥 Capacitor completo (sem erro)
+      - name: Setup Capacitor
         run: |
-          if [ ! -f "index.html" ]; then
-            echo "❌ index.html não encontrado na raiz!"
-            exit 1
-          fi
-
-      # 🧠 Criar config do Capacitor
-      - name: Create capacitor config
-        run: |
-          cat <<EOF > capacitor.config.json
-          {
-            "appId": "${APP_ID}",
-            "appName": "${APP_NAME}",
-            "webDir": ".",
-            "bundledWebRuntime": false
-          }
-          EOF
-
-      
-
-      # 🔄 Sync
-      - name: Sync Capacitor
-        run: npx cap sync android
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
+          npx cap add android
+          npx cap sync android
 
       # 🔐 Keystore
       - name: Decode Keystore
@@ -75,26 +47,6 @@ jobs:
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
-
-      # 🔢 Versionamento automático
-      - name: Set version code
-        run: |
-          VERSION_CODE=$(date +%s)
-          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
-
-      - name: Update version in Gradle
-        run: |
-          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle || true
-
-      # 🚀 Build AAB
-      - name: Build AAB
-        working-directory: android
-        run: |
-          ./gradlew bundleRelease \
-            -Pandroid.injected.signing.store.file=app/keystore.jks \
-            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
       # 🚀 Build APK
       - name: Build APK
@@ -107,12 +59,6 @@ jobs:
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
       # 📦 Upload
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: android/app/build/outputs/bundle/release/*.aab
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
