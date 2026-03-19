@@ -1,20 +1,20 @@
-name: URL to Android App (APK + AAB)
+name: URL to Android App PRO (NO IFRAME - Play Store Ready)
 
 on:
   workflow_dispatch:
     inputs:
       app_name:
-        description: "Editora Itaca App Name"
+        description: "Nome do App"
         required: true
-        default: "EditoraItacaiunas"
+        default: "MeuApp"
       app_id:
-        description: "App ID (ex: com.editoraitacaiunas.app)"
+        description: "com.meuapp.app"
         required: true
-        default: "com.editoraitacaiunas.app"
+        default: "com.meuapp.app"
       app_url:
         description: "URL do site"
         required: true
-        default: "https://editoraitacaiunas.com"
+        default: "https://google.com"
 
 jobs:
   build:
@@ -43,13 +43,12 @@ jobs:
       - name: Setup Android
         uses: android-actions/setup-android@v3
 
-      # ⚙️ Criar projeto base
-      - name: Create Web App
+      # 📁 Criar estrutura correta
+      - name: Create Web App (SAFE)
         run: |
-          mkdir app
-          cd app
+          mkdir -p app/www
+          cd app/www
 
-          # HTML simples com WebView
           cat <<EOF > index.html
           <!DOCTYPE html>
           <html>
@@ -57,26 +56,16 @@ jobs:
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>${APP_NAME}</title>
-            <style>
-              html,body {
-                margin:0;
-                height:100%;
-                overflow:hidden;
-              }
-              iframe {
-                width:100%;
-                height:100%;
-                border:none;
-              }
-            </style>
           </head>
           <body>
-            <iframe src="${APP_URL}"></iframe>
+            <h3 style="text-align:center;margin-top:40px;">
+              Carregando aplicativo...
+            </h3>
           </body>
           </html>
           EOF
 
-      # ⚙️ Setup Capacitor
+      # ⚙️ Setup Capacitor CORRETO
       - name: Setup Capacitor
         run: |
           cd app
@@ -84,16 +73,87 @@ jobs:
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
 
-          npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
+          npx cap init "$APP_NAME" "$APP_ID" --web-dir "www"
 
           npx cap add android
           npx cap sync android
 
-      # 🔐 Keystore
+      # 🔥 WebView nativa (SEM IFRAME)
+      - name: Configure Native WebView (PRO)
+        run: |
+          FILE=$(find app/android -name MainActivity.java)
+
+          PACKAGE=$(grep -oP 'package\s+\K[^;]+' $FILE)
+
+          echo "📄 Editando: $FILE"
+
+          cat <<EOF > $FILE
+          package $PACKAGE;
+
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.webkit.WebChromeClient;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+
+              @Override
+              public void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  WebView webView = this.bridge.getWebView();
+
+                  WebSettings settings = webView.getSettings();
+                  settings.setJavaScriptEnabled(true);
+                  settings.setDomStorageEnabled(true);
+                  settings.setAllowFileAccess(true);
+                  settings.setAllowContentAccess(true);
+                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
+
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.setWebChromeClient(new WebChromeClient());
+
+                  webView.loadUrl("${APP_URL}");
+              }
+
+              @Override
+              public void onBackPressed() {
+                  WebView webView = this.bridge.getWebView();
+                  if (webView.canGoBack()) {
+                      webView.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+          }
+          EOF
+
+      # 🌐 Permissão internet
+      - name: Enable Internet
+        run: |
+          sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET" \/>\n<application/' app/android/app/src/main/AndroidManifest.xml
+
+      # 🔐 Validar SECRET
+      - name: Validate KEYSTORE
+        run: |
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "❌ KEYSTORE_BASE64 não definido"
+            exit 1
+          fi
+
+      # 🔐 Setup Keystore
       - name: Setup Keystore
         run: |
           mkdir -p app/android/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/android/app/keystore.jks
+
+          SIZE=$(stat -c%s app/android/app/keystore.jks)
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "❌ Keystore inválida"
+            exit 1
+          fi
 
       - name: Make Gradle executable
         run: chmod +x app/android/gradlew
@@ -102,10 +162,10 @@ jobs:
       - name: Build AAB
         working-directory: app/android
         run: |
-          KEYSTORE_PATH=$(realpath app/keystore.jks)
+          KEYSTORE=$(realpath app/keystore.jks)
 
           ./gradlew bundleRelease \
-            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.file="$KEYSTORE" \
             -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
@@ -114,10 +174,10 @@ jobs:
       - name: Build APK
         working-directory: app/android
         run: |
-          KEYSTORE_PATH=$(realpath app/keystore.jks)
+          KEYSTORE=$(realpath app/keystore.jks)
 
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.file="$KEYSTORE" \
             -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
@@ -135,3 +195,4 @@ jobs:
         with:
           name: app-release-apk
           path: app/android/app/build/outputs/apk/release/*.apk
+
