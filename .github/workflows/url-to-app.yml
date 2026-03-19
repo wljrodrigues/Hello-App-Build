@@ -1,4 +1,5 @@
-name: URL to Android App PRO (NO IFRAME - Play Store Ready)
+
+name: URL to Android App PRO (BLINDADO FINAL)
 
 on:
   workflow_dispatch:
@@ -8,7 +9,7 @@ on:
         required: true
         default: "MeuApp"
       app_id:
-        description: "com.meuapp.app"
+        description: "App ID (ex: com.meuapp.app)"
         required: true
         default: "com.meuapp.app"
       app_url:
@@ -44,12 +45,11 @@ jobs:
         uses: android-actions/setup-android@v3
 
       # 📁 Criar estrutura correta
-      - name: Create Web App (SAFE)
+      - name: Create Web App
         run: |
           mkdir -p app/www
-          cd app/www
 
-          cat <<EOF > index.html
+          cat <<EOF > app/www/index.html
           <!DOCTYPE html>
           <html>
           <head>
@@ -58,14 +58,22 @@ jobs:
             <title>${APP_NAME}</title>
           </head>
           <body>
-            <h3 style="text-align:center;margin-top:40px;">
+            <h2 style="text-align:center;margin-top:40px;">
               Carregando aplicativo...
-            </h3>
+            </h2>
           </body>
           </html>
           EOF
 
-      # ⚙️ Setup Capacitor CORRETO
+      # 🔍 Debug estrutura
+      - name: Debug estrutura
+        run: |
+          echo "📂 app:"
+          ls -la app
+          echo "📂 app/www:"
+          ls -la app/www
+
+      # ⚙️ Setup Capacitor (FIX DEFINITIVO)
       - name: Setup Capacitor
         run: |
           cd app
@@ -73,19 +81,27 @@ jobs:
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
 
-          npx cap init "$APP_NAME" "$APP_ID" --web-dir "www"
+          # 🔥 CRIA CONFIG MANUAL (SEM BUG)
+          cat <<EOF > capacitor.config.json
+          {
+            "appId": "${APP_ID}",
+            "appName": "${APP_NAME}",
+            "webDir": "www",
+            "bundledWebRuntime": false
+          }
+          EOF
+
+          echo "📄 capacitor.config.json:"
+          cat capacitor.config.json
 
           npx cap add android
           npx cap sync android
 
       # 🔥 WebView nativa (SEM IFRAME)
-      - name: Configure Native WebView (PRO)
+      - name: Configure Native WebView
         run: |
           FILE=$(find app/android -name MainActivity.java)
-
           PACKAGE=$(grep -oP 'package\s+\K[^;]+' $FILE)
-
-          echo "📄 Editando: $FILE"
 
           cat <<EOF > $FILE
           package $PACKAGE;
@@ -141,6 +157,8 @@ jobs:
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "❌ KEYSTORE_BASE64 não definido"
             exit 1
+          else
+            echo "✅ KEYSTORE carregado"
           fi
 
       # 🔐 Setup Keystore
@@ -154,6 +172,8 @@ jobs:
             echo "❌ Keystore inválida"
             exit 1
           fi
+
+          echo "✅ Keystore OK ($SIZE bytes)"
 
       - name: Make Gradle executable
         run: chmod +x app/android/gradlew
@@ -195,4 +215,3 @@ jobs:
         with:
           name: app-release-apk
           path: app/android/app/build/outputs/apk/release/*.apk
-
