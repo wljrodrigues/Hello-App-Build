@@ -1,11 +1,9 @@
-name: Android Build PRO
+name: Android Build (HTML Puro)
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    tags:
-      - 'v*'
 
 jobs:
   build:
@@ -19,80 +17,70 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # ⚡ Cache Node
-      - name: Cache node_modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-
+      # 🔹 Node (necessário pro Capacitor)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
+      # 🔹 Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '21'
 
+      # 🔹 Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install dependencies
+      # 🔥 Criar package.json (sempre, HTML puro precisa)
+      - name: Init Node project
+        run: npm init -y
+
+      # 🔥 Instalar Capacitor
+      - name: Install Capacitor
+        run: npm install @capacitor/core @capacitor/cli
+
+      # 🔍 Garantir que existe index.html
+      - name: Check index.html
         run: |
-          if [ -f "package.json" ]; then
-            npm ci
+          if [ ! -f "index.html" ]; then
+            echo "❌ index.html não encontrado na raiz!"
+            exit 1
           fi
 
-      - name: Build web app
-        run: |
-          if [ -f "package.json" ]; then
-            npm run build || echo "Sem build"
-          fi
-
-      # 🔍 Detectar pasta
-      - name: Detect web directory
-        run: |
-          if [ -d "dist" ]; then
-            echo "WEB_DIR=dist" >> $GITHUB_ENV
-          elif [ -d "build" ]; then
-            echo "WEB_DIR=build" >> $GITHUB_ENV
-          else
-            echo "WEB_DIR=." >> $GITHUB_ENV
-          fi
-
-      # 🧠 Criar config automática
+      # 🧠 Criar config do Capacitor
       - name: Create capacitor config
         run: |
           cat <<EOF > capacitor.config.json
           {
             "appId": "${APP_ID}",
             "appName": "${APP_NAME}",
-            "webDir": "${WEB_DIR}",
+            "webDir": ".",
             "bundledWebRuntime": false
           }
           EOF
 
+      # 📱 Inicializar Capacitor
+      - name: Init Capacitor
+        run: npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
+
       # 📱 Adicionar Android
       - name: Add Android platform
-        run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
-          fi
+        run: npx cap add android
 
+      # 🔄 Sync
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # 🎨 Ícones automáticos (se existir assets/)
-      - name: Generate icons
+      # 🔐 Keystore
+      - name: Decode Keystore
         run: |
-          if [ -d "assets" ]; then
-            npx @capacitor/assets generate --android
-          fi
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
 
       # 🔢 Versionamento automático
       - name: Set version code
@@ -103,14 +91,6 @@ jobs:
       - name: Update version in Gradle
         run: |
           sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle || true
-
-      # 🔐 Keystore
-      - name: Decode Keystore
-        run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
-
-      - name: Make Gradle executable
-        run: chmod +x android/gradlew
 
       # 🚀 Build AAB
       - name: Build AAB
