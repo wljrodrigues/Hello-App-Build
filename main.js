@@ -1,3 +1,52 @@
+// 🔥 Inicialização profissional
+window.addEventListener("load", () => {
+    setTimeout(initApp, 800); // tempo mínimo de loading
+});
+
+function initApp() {
+    if (!navigator.onLine) {
+        showOffline();
+        return;
+    }
+
+    hideLoader();
+    showApp();
+}
+
+// 🎯 Loader
+function hideLoader() {
+    document.getElementById("app-loader").style.display = "none";
+}
+
+// 📱 Mostrar app
+function showApp() {
+    document.getElementById("app").style.display = "block";
+}
+
+// 📡 Offline
+function showOffline() {
+    document.getElementById("app-loader").style.display = "none";
+    document.getElementById("offline-screen").style.display = "flex";
+}
+
+// 🔄 Retry
+function retryConnection() {
+    location.reload();
+}
+
+// 🌐 Detectar reconexão automática
+window.addEventListener("online", () => {
+    location.reload();
+});
+
+window.addEventListener("offline", () => {
+    showOffline();
+});
+
+
+
+
+
 class WMSLayerExplorer {
     constructor() {
         this.baseUrl = 'https://portalmaps.com.br/geoserver/wms';
@@ -494,3 +543,5 @@ const explorer = new WMSLayerExplorer();
 
 // Tornar o explorer globalmente acessível
 window.explorer = explorer;
+
+
