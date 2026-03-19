@@ -40,7 +40,7 @@ jobs:
 
       # 🔥 Instalar Capacitor
       - name: Install Capacitor
-        run: npm install @capacitor/core @capacitor/cli
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android
 
       # 🔍 Garantir que existe index.html
       - name: Check index.html
@@ -62,13 +62,7 @@ jobs:
           }
           EOF
 
-      # 📱 Inicializar Capacitor
-      - name: Init Capacitor
-        run: npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
-
-      # 📱 Adicionar Android
-      - name: Add Android platform
-        run: npx cap add android
+      
 
       # 🔄 Sync
       - name: Sync Capacitor
