@@ -1,4 +1,4 @@
-name: Android Build (HTML Clean PRO)
+name: Android Build (HTML PRO - Blindado)
 
 on:
   workflow_dispatch:
@@ -35,26 +35,24 @@ jobs:
       - name: Check index.html
         run: |
           if [ ! -f "index.html" ]; then
-            echo "❌ index.html não encontrado na raiz!"
+            echo "❌ index.html não encontrado!"
             exit 1
           fi
 
-      # 📁 Preparar pasta limpa
+      # 📁 Copiar arquivos limpos
       - name: Prepare clean web assets
         run: |
           mkdir www
-
-          # copiar apenas arquivos essenciais
-          rsync -av --progress ./ www/ \
+          rsync -av ./ www/ \
             --exclude node_modules \
             --exclude .git \
             --exclude android \
             --exclude www \
             --exclude .github \
-            --exclude package-lock.json \
-            --exclude package.json
+            --exclude package.json \
+            --exclude package-lock.json
 
-      # ⚙️ Capacitor setup
+      # ⚙️ Setup Capacitor
       - name: Setup Capacitor
         run: |
           npm init -y
@@ -64,30 +62,53 @@ jobs:
           npx cap add android
           npx cap sync android
 
-      # 🔐 Keystore
-      - name: Decode Keystore
+      # 🔐 Keystore blindada
+      - name: Setup Keystore (Validate + Safe)
         run: |
+          echo "🔐 Decodificando keystore..."
+
+          mkdir -p android/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
+
+          if [ ! -f "android/app/keystore.jks" ]; then
+            echo "❌ Keystore não encontrada!"
+            exit 1
+          fi
+
+          SIZE=$(stat -c%s android/app/keystore.jks)
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "❌ Keystore inválida!"
+            exit 1
+          fi
+
+          echo "✅ Keystore válida ($SIZE bytes)"
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      # 🔢 Versionamento automático
-      - name: Set version code
+      # 🔍 Debug opcional
+      - name: Debug files
         run: |
-          VERSION_CODE=$(date +%s)
-          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "📂 android/app:"
+          ls -la android/app
 
-      - name: Update version in Gradle
-        run: |
-          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle || true
-
-      # 🚀 Build APK
-      - name: Build APK
+      # 🚀 Build APK (ABSOLUTE PATH FIX)
+      - name: Build APK (Final Safe)
         working-directory: android
         run: |
+          echo "🚀 Iniciando build..."
+
+          KEYSTORE_PATH=$(realpath app/keystore.jks)
+
+          echo "📁 Keystore: $KEYSTORE_PATH"
+
+          if [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "❌ ERRO: Keystore não encontrada!"
+            exit 1
+          fi
+
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=keystore.jks \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
             -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
