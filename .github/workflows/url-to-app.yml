@@ -1,0 +1,137 @@
+name: URL to Android App (APK + AAB)
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: "Editora Itaca App Name"
+        required: true
+        default: "EditoraItacaiunas"
+      app_id:
+        description: "App ID (ex: com.editoraitacaiunas.app)"
+        required: true
+        default: "com.editoraitacaiunas.app"
+      app_url:
+        description: "URL do site"
+        required: true
+        default: "https://editoraitacaiunas.com"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: ${{ github.event.inputs.app_name }}
+      APP_ID: ${{ github.event.inputs.app_id }}
+      APP_URL: ${{ github.event.inputs.app_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android
+        uses: android-actions/setup-android@v3
+
+      # ⚙️ Criar projeto base
+      - name: Create Web App
+        run: |
+          mkdir app
+          cd app
+
+          # HTML simples com WebView
+          cat <<EOF > index.html
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${APP_NAME}</title>
+            <style>
+              html,body {
+                margin:0;
+                height:100%;
+                overflow:hidden;
+              }
+              iframe {
+                width:100%;
+                height:100%;
+                border:none;
+              }
+            </style>
+          </head>
+          <body>
+            <iframe src="${APP_URL}"></iframe>
+          </body>
+          </html>
+          EOF
+
+      # ⚙️ Setup Capacitor
+      - name: Setup Capacitor
+        run: |
+          cd app
+
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android
+
+          npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
+
+          npx cap add android
+          npx cap sync android
+
+      # 🔐 Keystore
+      - name: Setup Keystore
+        run: |
+          mkdir -p app/android/app
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/android/app/keystore.jks
+
+      - name: Make Gradle executable
+        run: chmod +x app/android/gradlew
+
+      # 🚀 Build AAB
+      - name: Build AAB
+        working-directory: app/android
+        run: |
+          KEYSTORE_PATH=$(realpath app/keystore.jks)
+
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      # 🚀 Build APK
+      - name: Build APK
+        working-directory: app/android
+        run: |
+          KEYSTORE_PATH=$(realpath app/keystore.jks)
+
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      # 📦 Upload AAB
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: app/android/app/build/outputs/bundle/release/*.aab
+
+      # 📦 Upload APK
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: app/android/app/build/outputs/apk/release/*.apk
