@@ -1,0 +1,146 @@
+name: Android Build PRO
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      APP_NAME: MeuApp
+      APP_ID: com.meuapp.app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ⚡ Cache Node
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: |
+          if [ -f "package.json" ]; then
+            npm ci
+          fi
+
+      - name: Build web app
+        run: |
+          if [ -f "package.json" ]; then
+            npm run build || echo "Sem build"
+          fi
+
+      # 🔍 Detectar pasta
+      - name: Detect web directory
+        run: |
+          if [ -d "dist" ]; then
+            echo "WEB_DIR=dist" >> $GITHUB_ENV
+          elif [ -d "build" ]; then
+            echo "WEB_DIR=build" >> $GITHUB_ENV
+          else
+            echo "WEB_DIR=." >> $GITHUB_ENV
+          fi
+
+      # 🧠 Criar config automática
+      - name: Create capacitor config
+        run: |
+          cat <<EOF > capacitor.config.json
+          {
+            "appId": "${APP_ID}",
+            "appName": "${APP_NAME}",
+            "webDir": "${WEB_DIR}",
+            "bundledWebRuntime": false
+          }
+          EOF
+
+      # 📱 Adicionar Android
+      - name: Add Android platform
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      # 🎨 Ícones automáticos (se existir assets/)
+      - name: Generate icons
+        run: |
+          if [ -d "assets" ]; then
+            npx @capacitor/assets generate --android
+          fi
+
+      # 🔢 Versionamento automático
+      - name: Set version code
+        run: |
+          VERSION_CODE=$(date +%s)
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+
+      - name: Update version in Gradle
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle || true
+
+      # 🔐 Keystore
+      - name: Decode Keystore
+        run: |
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      # 🚀 Build AAB
+      - name: Build AAB
+        working-directory: android
+        run: |
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file=app/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      # 🚀 Build APK
+      - name: Build APK
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=app/keystore.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      # 📦 Upload
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: android/app/build/outputs/bundle/release/*.aab
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-apk
+          path: android/app/build/outputs/apk/release/*.apk
