@@ -1,4 +1,4 @@
-name: Android Build (HTML PRO - Blindado v2)
+name: Android Build (HTML PRO - Blindado v3)
 
 on:
   workflow_dispatch:
@@ -56,11 +56,24 @@ jobs:
       - name: Setup Capacitor
         run: |
           npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets
 
           npx cap init "$APP_NAME" "$APP_ID" --web-dir "www"
           npx cap add android
-          npx cap sync android
+
+      # 🎨 Gerar ícone e splash automaticamente
+      - name: Generate icons and splash
+        run: |
+          if [ -d "assets" ]; then
+            echo "🎨 Gerando ícones e splash..."
+            npx @capacitor/assets generate --android
+          else
+            echo "⚠️ Pasta assets não encontrada, pulando..."
+          fi
+
+      # 🔄 Sync após assets (ORDEM CORRETA)
+      - name: Sync Capacitor
+        run: npx cap sync android
 
       # 🔐 Validar SECRET antes de usar
       - name: Validate KEYSTORE_BASE64
@@ -95,6 +108,11 @@ jobs:
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
+
+      # 🎨 Customização visual (cores do app)
+      - name: Customize app colors
+        run: |
+          sed -i 's/#6200ee/#0f172a/g' android/app/src/main/res/values/colors.xml || true
 
       # 🔍 Debug opcional
       - name: Debug files
