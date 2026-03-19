@@ -8,9 +8,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      APP_NAME: WebAppPro
-      APP_ID: com.webapppro.app
-      APP_URL: https://seusite.com
+      APP_NAME: EditoraItacaiunas
+      APP_ID: com.editoraitacaiunas.app
+      APP_URL: https://editoraitacaiunas.com
 
     steps:
       - name: Setup Node.js
