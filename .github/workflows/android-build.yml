@@ -1,4 +1,4 @@
-name: Android Build (HTML Puro - Corrigido)
+name: Android Build (HTML Clean PRO)
 
 on:
   workflow_dispatch:
@@ -31,12 +31,36 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 🔥 Capacitor completo (sem erro)
+      # 🔍 Validar projeto
+      - name: Check index.html
+        run: |
+          if [ ! -f "index.html" ]; then
+            echo "❌ index.html não encontrado na raiz!"
+            exit 1
+          fi
+
+      # 📁 Preparar pasta limpa
+      - name: Prepare clean web assets
+        run: |
+          mkdir www
+
+          # copiar apenas arquivos essenciais
+          rsync -av --progress ./ www/ \
+            --exclude node_modules \
+            --exclude .git \
+            --exclude android \
+            --exclude www \
+            --exclude .github \
+            --exclude package-lock.json \
+            --exclude package.json
+
+      # ⚙️ Capacitor setup
       - name: Setup Capacitor
         run: |
           npm init -y
           npm install @capacitor/core @capacitor/cli @capacitor/android
-          npx cap init "$APP_NAME" "$APP_ID" --web-dir "."
+
+          npx cap init "$APP_NAME" "$APP_ID" --web-dir "www"
           npx cap add android
           npx cap sync android
 
@@ -47,6 +71,16 @@ jobs:
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
+
+      # 🔢 Versionamento automático
+      - name: Set version code
+        run: |
+          VERSION_CODE=$(date +%s)
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+
+      - name: Update version in Gradle
+        run: |
+          sed -i "s/versionCode [0-9]*/versionCode $VERSION_CODE/" android/app/build.gradle || true
 
       # 🚀 Build APK
       - name: Build APK
