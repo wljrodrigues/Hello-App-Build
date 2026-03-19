@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BUSCAS - Explorador de Camadas</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>BUSCAS - Explorador de Camadas</h1>
+            <p>Explore e baixe camadas do servidor WMS público</p>
+        </header>
+
+        <div class="controls">
+            <button id="loadLayers" class="btn-primary">
+                <span class="btn-icon">🔄</span>
+                Carregar Camadas
+            </button>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Buscar camadas...">
+                <span class="search-icon">🔍</span>
+            </div>
+        </div>
+
+        <div class="stats" id="stats" style="display: none;">
+            <div class="stat-item">
+                <span class="stat-number" id="totalLayers">0</span>
+                <span class="stat-label">Camadas Encontradas</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-number" id="filteredLayers">0</span>
+                <span class="stat-label">Camadas Exibidas</span>
+            </div>
+        </div>
+
+        <div class="loading" id="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Carregando camadas do servidor...</p>
+        </div>
+
+        <div class="error" id="error" style="display: none;">
+            <p>Erro ao carregar camadas. Verifique sua conexão ou tente novamente.</p>
+        </div>
+
+        <div class="layers-container" id="layersContainer" style="display: none;">
+            <div class="layers-grid" id="layersGrid"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script type="module" src="main.js"></script>
+</body>
+</html>
