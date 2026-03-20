@@ -15,7 +15,7 @@ on:
       app_url:
         description: "URL do site"
         required: true
-        default: "https://itacaiunas.com"
+        default: "https://editoraitacaiunas.com"
 
 jobs:
   build:
