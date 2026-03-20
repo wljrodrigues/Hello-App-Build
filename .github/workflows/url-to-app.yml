@@ -40,55 +40,101 @@ jobs:
       # =========================================
       # 🎨 BRANDING AUTOMÁTICO (SaaS CORE)
       # =========================================
-      - name: Generate Branding
+      - name: Generate Branding (SAFE)
         run: |
-          echo "🚀 Gerando branding automático..."
+            echo "🚀 Gerando branding automático..."
 
-          mkdir -p assets
+            mkdir -p assets
 
-          curl -L "$APP_URL" -o page.html || true
+            sudo apt-get update
+            sudo apt-get install -y imagemagick file
 
-          # 🧾 Nome
-          TITLE=$(grep -oP '(?<=<title>).*?(?=</title>)' page.html | head -n 1)
-          if [ -z "$TITLE" ]; then TITLE="Meu App"; fi
+            # -----------------------------
+            # 🌐 Baixar HTML
+            # -----------------------------
+            curl -L "$APP_URL" -o page.html || true
 
-          echo "APP_NAME=$TITLE" >> $GITHUB_ENV
-          echo "📱 Nome: $TITLE"
+            # -----------------------------
+            # 🧾 Nome
+            # -----------------------------
+            TITLE=$(grep -oP '(?<=<title>).*?(?=</title>)' page.html | head -n 1)
+            if [ -z "$TITLE" ]; then TITLE="Meu App"; fi
 
-          # 🖼️ Logo
-          LOGO=$(grep -oP '(?<=property="og:image" content=")[^"]+' page.html | head -n 1)
+            echo "APP_NAME=$TITLE" >> $GITHUB_ENV
+            echo "📱 Nome: $TITLE"
 
-          if [ ! -z "$LOGO" ]; then
-            curl -L "$LOGO" -o logo.png
-          else
-            DOMAIN=$(echo $APP_URL | awk -F/ '{print $3}')
-            curl -L "$APP_URL/favicon.ico" -o logo.png || true
-            if [ ! -s logo.png ]; then
-              curl -L "https://www.google.com/s2/favicons?sz=512&domain=$DOMAIN" -o logo.png
+            # -----------------------------
+            # 🖼️ Tentar OG IMAGE
+            # -----------------------------
+            LOGO=$(grep -oP '(?<=property="og:image" content=")[^"]+' page.html | head -n 1)
+
+            echo "🔍 Logo detectado: $LOGO"
+
+            download_image () {
+            URL="$1"
+            OUTPUT="$2"
+
+            curl -L -A "Mozilla/5.0" "$URL" -o "$OUTPUT" || return 1
+
+            TYPE=$(file -b "$OUTPUT")
+
+            echo "📦 Tipo detectado: $TYPE"
+
+            if [[ "$TYPE" != *"image"* ]]; then
+                echo "❌ Não é imagem válida"
+                return 1
             fi
-          fi
 
-          if [ ! -s logo.png ]; then
-            echo "❌ Não foi possível obter logo"
-            exit 1
-          fi
+            return 0
+            }
 
-          # 🎨 Icon
-          convert logo.png -resize 1024x1024 assets/icon.png
+            SUCCESS=false
 
-          # 🎯 Cor dominante
-          COLOR=$(convert assets/icon.png -scale 1x1\! -format '%[hex:p{0,0}]' info:)
-          echo "APP_COLOR=#${COLOR}" >> $GITHUB_ENV
-          echo "🎨 Cor: #${COLOR}"
+            # tenta og:image
+            if [ ! -z "$LOGO" ]; then
+            echo "🎯 Tentando og:image..."
+            download_image "$LOGO" logo.png && SUCCESS=true
+            fi
 
-          # 🌊 Splash
-          convert -size 2732x2732 canvas:"#${COLOR}" \
+            # fallback favicon
+            if [ "$SUCCESS" = false ]; then
+            echo "🔁 Tentando favicon..."
+            download_image "$APP_URL/favicon.ico" logo.png && SUCCESS=true
+            fi
+
+            # fallback Google
+            if [ "$SUCCESS" = false ]; then
+            echo "🌐 Tentando Google favicon..."
+            DOMAIN=$(echo $APP_URL | awk -F/ '{print $3}')
+            download_image "https://www.google.com/s2/favicons?sz=512&domain=$DOMAIN" logo.png && SUCCESS=true
+            fi
+
+            # fallback final (ícone padrão)
+            if [ "$SUCCESS" = false ]; then
+            echo "⚠️ Usando ícone padrão..."
+            convert -size 1024x1024 canvas:"#1e293b" assets/icon.png
+            else
+            echo "🖼️ Convertendo logo..."
+            convert logo.png -resize 1024x1024 assets/icon.png
+            fi
+
+            # -----------------------------
+            # 🎨 Cor dominante
+            # -----------------------------
+            COLOR=$(convert assets/icon.png -scale 1x1\! -format '%[hex:p{0,0}]' info:)
+            echo "APP_COLOR=#${COLOR}" >> $GITHUB_ENV
+            echo "🎨 Cor: #${COLOR}"
+
+            # -----------------------------
+            # 🌊 Splash
+            # -----------------------------
+            convert -size 2732x2732 canvas:"#${COLOR}" \
             -gravity center assets/icon.png \
             -resize 512x512 \
             -composite assets/splash.png
 
-          echo "✅ Branding pronto"
-          ls -la assets
+            echo "✅ Branding finalizado"
+            ls -la assets
 
       # =========================================
       # 📁 PREPARAR HTML
