@@ -5,17 +5,17 @@ on:
   workflow_dispatch:
     inputs:
       app_name:
-        description: "Nome do App"
+        description: "Itacaiunas"
         required: true
-        default: "MeuApp"
+        default: "Itacaiunas"
       app_id:
         description: "App ID (ex: com.meuapp.app)"
         required: true
-        default: "com.meuapp.app"
+        default: "com.itacaiunas.app"
       app_url:
         description: "URL do site"
         required: true
-        default: "https://google.com"
+        default: "https://itacaiunas.com"
 
 jobs:
   build:
