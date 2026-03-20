@@ -1,288 +1,182 @@
-
-name: URL to Android App PRO (BLINDADO FINAL)
+name: Android Build (HTML SaaS PRO - Branding AUTO)
 
 on:
   workflow_dispatch:
-    inputs:
-      app_name:
-        description: "Nome do aplicativo"
-        required: true
-        default: "Itacaiunas"
-      app_id:
-        description: "App ID (ex: com.meuapp.app)"
-        required: true
-        default: "com.itacaiunas.app"
-      app_url:
-        description: "URL do site"
-        required: true
-        default: "https://editoraitacaiunas.com"
+  push:
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     env:
-      APP_NAME: ${{ github.event.inputs.app_name }}
-      APP_ID: ${{ github.event.inputs.app_id }}
-      APP_URL: ${{ github.event.inputs.app_url }}
+      APP_ID: com.meuapp.app
+      APP_URL: https://editoraitacaiunas.com
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 🔧 Setup
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: 22
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: temurin
+          java-version: 21
 
       - name: Setup Android
         uses: android-actions/setup-android@v3
 
-      # 📁 Criar estrutura correta
-      - name: Create Web App
+      - name: Install tools
         run: |
-          mkdir -p app/www
+          sudo apt-get update
+          sudo apt-get install -y imagemagick rsync
 
-          cat <<EOF > app/www/index.html
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>${APP_NAME}</title>
-          </head>
-          <body>
-            <h2 style="text-align:center;margin-top:40px;">
-              Carregando aplicativo...
-            </h2>
-          </body>
-          </html>
-          EOF
-
-      # 🔍 Debug estrutura
-      - name: Debug estrutura
+      # =========================================
+      # 🎨 BRANDING AUTOMÁTICO (SaaS CORE)
+      # =========================================
+      - name: Generate Branding
         run: |
-          echo "📂 app:"
-          ls -la app
-          echo "📂 app/www:"
-          ls -la app/www
-     
-      - name: Generate Full Branding (AUTO SaaS)
-        run: |
-            echo "🚀 Iniciando branding automático..."
+          echo "🚀 Gerando branding automático..."
 
-            mkdir -p assets
+          mkdir -p assets
 
-            # instalar ferramentas
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
+          curl -L "$APP_URL" -o page.html || true
 
-            # -----------------------------
-            # 🌐 BAIXAR HTML
-            # -----------------------------
-            curl -L "$APP_URL" -o page.html || true
+          # 🧾 Nome
+          TITLE=$(grep -oP '(?<=<title>).*?(?=</title>)' page.html | head -n 1)
+          if [ -z "$TITLE" ]; then TITLE="Meu App"; fi
 
-            # -----------------------------
-            # 🧾 EXTRAIR NOME DO APP
-            # -----------------------------
-            TITLE=$(grep -oP '(?<=<title>).*?(?=</title>)' page.html | head -n 1)
+          echo "APP_NAME=$TITLE" >> $GITHUB_ENV
+          echo "📱 Nome: $TITLE"
 
-            if [ -z "$TITLE" ]; then
-            TITLE="Meu App"
-            fi
+          # 🖼️ Logo
+          LOGO=$(grep -oP '(?<=property="og:image" content=")[^"]+' page.html | head -n 1)
 
-            echo "APP_NAME=$TITLE" >> $GITHUB_ENV
-            echo "🧾 Nome detectado: $TITLE"
-
-            # -----------------------------
-            # 🖼️ PEGAR LOGO (OG IMAGE)
-            # -----------------------------
-            LOGO=$(grep -oP '(?<=property="og:image" content=")[^"]+' page.html | head -n 1)
-
-            if [ ! -z "$LOGO" ]; then
-            echo "🎯 Usando og:image"
+          if [ ! -z "$LOGO" ]; then
             curl -L "$LOGO" -o logo.png
-            else
-            echo "🔁 Fallback favicon"
+          else
             DOMAIN=$(echo $APP_URL | awk -F/ '{print $3}')
             curl -L "$APP_URL/favicon.ico" -o logo.png || true
-
             if [ ! -s logo.png ]; then
-                curl -L "https://www.google.com/s2/favicons?sz=512&domain=$DOMAIN" -o logo.png
+              curl -L "https://www.google.com/s2/favicons?sz=512&domain=$DOMAIN" -o logo.png
             fi
-            fi
+          fi
 
-            # validar
-            if [ ! -s logo.png ]; then
+          if [ ! -s logo.png ]; then
             echo "❌ Não foi possível obter logo"
             exit 1
-            fi
+          fi
 
-            # -----------------------------
-            # 🎨 GERAR ÍCONE
-            # -----------------------------
-            convert logo.png -resize 1024x1024 assets/icon.png
+          # 🎨 Icon
+          convert logo.png -resize 1024x1024 assets/icon.png
 
-            # -----------------------------
-            # 🎨 EXTRAIR COR PRINCIPAL
-            # -----------------------------
-            COLOR=$(convert assets/icon.png -scale 1x1\! -format '%[hex:p{0,0}]' info:)
-            echo "🎨 Cor detectada: #$COLOR"
+          # 🎯 Cor dominante
+          COLOR=$(convert assets/icon.png -scale 1x1\! -format '%[hex:p{0,0}]' info:)
+          echo "APP_COLOR=#${COLOR}" >> $GITHUB_ENV
+          echo "🎨 Cor: #${COLOR}"
 
-            echo "APP_COLOR=#${COLOR}" >> $GITHUB_ENV
-
-            # -----------------------------
-            # 🌊 GERAR SPLASH
-            # -----------------------------
-            convert -size 2732x2732 canvas:"#${COLOR}" \
+          # 🌊 Splash
+          convert -size 2732x2732 canvas:"#${COLOR}" \
             -gravity center assets/icon.png \
             -resize 512x512 \
             -composite assets/splash.png
 
-            echo "✅ Branding gerado:"
-            ls -la assets
+          echo "✅ Branding pronto"
+          ls -la assets
 
+      # =========================================
+      # 📁 PREPARAR HTML
+      # =========================================
+      - name: Prepare web assets
+        run: |
+          mkdir www
+          rsync -av ./ www/ \
+            --exclude node_modules \
+            --exclude .git \
+            --exclude android \
+            --exclude www \
+            --exclude .github \
+            --exclude package.json \
+            --exclude package-lock.json
 
-
-      # ⚙️ Setup Capacitor (FIX DEFINITIVO)
+      # =========================================
+      # ⚙️ CAPACITOR (SEM ERROS)
+      # =========================================
       - name: Setup Capacitor
         run: |
-            cd app
+          mkdir app
+          cd app
 
-            npm init -y
-            npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets
+          npm init -y
+          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets
 
-            cat <<EOF > capacitor.config.json
-            {
+          cat <<EOF > capacitor.config.json
+          {
             "appId": "${APP_ID}",
             "appName": "${APP_NAME}",
             "webDir": "www",
             "bundledWebRuntime": false
-             }
-            EOF
-
-            npx cap add android
-
-      - name: Generate Icons and Splash
-        run: |
-                cd app
-
-                if [ -d "../assets" ]; then
-                echo "🎨 Gerando ícones e splash..."
-                npx @capacitor/assets generate --android
-                else
-                echo "⚠️ Pasta assets não encontrada"
-                fi
-
-      - name: Sync Capacitor
-        run: |
-             cd app
-             npx cap sync android
-
-
-             
-
-
-      # 🔥 WebView nativa (SEM IFRAME)
-      - name: Configure Native WebView
-        run: |
-          FILE=$(find app/android -name MainActivity.java)
-          PACKAGE=$(grep -oP 'package\s+\K[^;]+' $FILE)
-
-          cat <<EOF > $FILE
-          package $PACKAGE;
-
-          import android.os.Bundle;
-          import android.webkit.WebSettings;
-          import android.webkit.WebView;
-          import android.webkit.WebViewClient;
-          import android.webkit.WebChromeClient;
-          import com.getcapacitor.BridgeActivity;
-
-          public class MainActivity extends BridgeActivity {
-
-              @Override
-              public void onCreate(Bundle savedInstanceState) {
-                  super.onCreate(savedInstanceState);
-
-                  WebView webView = this.bridge.getWebView();
-
-                  WebSettings settings = webView.getSettings();
-                  settings.setJavaScriptEnabled(true);
-                  settings.setDomStorageEnabled(true);
-                  settings.setAllowFileAccess(true);
-                  settings.setAllowContentAccess(true);
-                  settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
-
-                  webView.setWebViewClient(new WebViewClient());
-                  webView.setWebChromeClient(new WebChromeClient());
-
-                  webView.loadUrl("${APP_URL}");
-              }
-
-              @Override
-              public void onBackPressed() {
-                  WebView webView = this.bridge.getWebView();
-                  if (webView.canGoBack()) {
-                      webView.goBack();
-                  } else {
-                      super.onBackPressed();
-                  }
-              }
           }
           EOF
 
-      # 🌐 Permissão internet
-      - name: Enable Internet
-        run: |
-          sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET" \/>\n<application/' app/android/app/src/main/AndroidManifest.xml
+          # copiar web
+          cp -r ../www ./www
 
-      # 🔐 Validar SECRET
-      - name: Validate KEYSTORE
-        run: |
-          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "❌ KEYSTORE_BASE64 não definido"
-            exit 1
-          else
-            echo "✅ KEYSTORE carregado"
-          fi
+          npx cap add android
 
-      # 🔐 Setup Keystore
+      # 🎨 Gerar assets Android
+      - name: Generate Android Assets
+        run: |
+          cd app
+          cp -r ../assets .
+          npx @capacitor/assets generate --android
+
+      # 🔄 Sync
+      - name: Sync Capacitor
+        run: |
+          cd app
+          npx cap sync android
+
+      # 🎨 Aplicar cor no Android
+      - name: Apply Theme Color
+        run: |
+          sed -i "s/#6200ee/${{ env.APP_COLOR }}/g" app/android/app/src/main/res/values/colors.xml || true
+
+      # =========================================
+      # 🔐 KEYSTORE AUTO (SE NÃO EXISTIR)
+      # =========================================
       - name: Setup Keystore
         run: |
-          mkdir -p app/android/app
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > app/android/app/keystore.jks
+          cd app/android/app
 
-          SIZE=$(stat -c%s app/android/app/keystore.jks)
-          if [ "$SIZE" -lt 1000 ]; then
-            echo "❌ Keystore inválida"
-            exit 1
+          if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "⚠️ Gerando keystore automática..."
+
+            keytool -genkey -v \
+              -keystore keystore.jks \
+              -storepass android \
+              -keypass android \
+              -alias app \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=App,O=Company,C=BR"
+          else
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
           fi
-
-          echo "✅ Keystore OK ($SIZE bytes)"
 
       - name: Make Gradle executable
         run: chmod +x app/android/gradlew
 
-      # 🚀 Build AAB
-      - name: Build AAB
-        working-directory: app/android
-        run: |
-          KEYSTORE=$(realpath app/keystore.jks)
-
-          ./gradlew bundleRelease \
-            -Pandroid.injected.signing.store.file="$KEYSTORE" \
-            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-
-      # 🚀 Build APK
+      # =========================================
+      # 🚀 BUILD APK
+      # =========================================
       - name: Build APK
         working-directory: app/android
         run: |
@@ -290,20 +184,35 @@ jobs:
 
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE" \
-            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD || 'android' }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS || 'app' }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD || 'android' }}
 
-      # 📦 Upload AAB
-      - name: Upload AAB
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-release-aab
-          path: app/android/app/build/outputs/bundle/release/*.aab
+      # =========================================
+      # 🚀 BUILD AAB (PLAY STORE)
+      # =========================================
+      - name: Build AAB
+        working-directory: app/android
+        run: |
+          KEYSTORE=$(realpath app/keystore.jks)
 
-      # 📦 Upload APK
+          ./gradlew bundleRelease \
+            -Pandroid.injected.signing.store.file="$KEYSTORE" \
+            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD || 'android' }} \
+            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS || 'app' }} \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD || 'android' }}
+
+      # =========================================
+      # 📦 UPLOAD
+      # =========================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: app-release-apk
           path: app/android/app/build/outputs/apk/release/*.apk
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-aab
+          path: app/android/app/build/outputs/bundle/release/*.aab
