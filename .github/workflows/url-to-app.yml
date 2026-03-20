@@ -76,26 +76,38 @@ jobs:
       # ⚙️ Setup Capacitor (FIX DEFINITIVO)
       - name: Setup Capacitor
         run: |
-          cd app
+            cd app
 
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android
+            npm init -y
+            npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets
 
-          # 🔥 CRIA CONFIG MANUAL (SEM BUG)
-          cat <<EOF > capacitor.config.json
-          {
+            cat <<EOF > capacitor.config.json
+            {
             "appId": "${APP_ID}",
             "appName": "${APP_NAME}",
             "webDir": "www",
             "bundledWebRuntime": false
-          }
-          EOF
+             }
+            EOF
 
-          echo "📄 capacitor.config.json:"
-          cat capacitor.config.json
+            npx cap add android
 
-          npx cap add android
-          npx cap sync android
+      - name: Generate Icons and Splash
+        run: |
+                cd app
+
+                if [ -d "../assets" ]; then
+                echo "🎨 Gerando ícones e splash..."
+                npx @capacitor/assets generate --android
+                else
+                echo "⚠️ Pasta assets não encontrada"
+                fi
+
+      - name: Sync Capacitor
+        run: |
+             cd app
+             npx cap sync android
+
 
       # 🔥 WebView nativa (SEM IFRAME)
       - name: Configure Native WebView
