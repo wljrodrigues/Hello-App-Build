@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       app_name:
-        description: "Itacaiunas"
+        description: "Nome do aplicativo"
         required: true
         default: "Itacaiunas"
       app_id:
@@ -72,6 +72,83 @@ jobs:
           ls -la app
           echo "📂 app/www:"
           ls -la app/www
+     
+      - name: Generate Full Branding (AUTO SaaS)
+        run: |
+            echo "🚀 Iniciando branding automático..."
+
+            mkdir -p assets
+
+            # instalar ferramentas
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+
+            # -----------------------------
+            # 🌐 BAIXAR HTML
+            # -----------------------------
+            curl -L "$APP_URL" -o page.html || true
+
+            # -----------------------------
+            # 🧾 EXTRAIR NOME DO APP
+            # -----------------------------
+            TITLE=$(grep -oP '(?<=<title>).*?(?=</title>)' page.html | head -n 1)
+
+            if [ -z "$TITLE" ]; then
+            TITLE="Meu App"
+            fi
+
+            echo "APP_NAME=$TITLE" >> $GITHUB_ENV
+            echo "🧾 Nome detectado: $TITLE"
+
+            # -----------------------------
+            # 🖼️ PEGAR LOGO (OG IMAGE)
+            # -----------------------------
+            LOGO=$(grep -oP '(?<=property="og:image" content=")[^"]+' page.html | head -n 1)
+
+            if [ ! -z "$LOGO" ]; then
+            echo "🎯 Usando og:image"
+            curl -L "$LOGO" -o logo.png
+            else
+            echo "🔁 Fallback favicon"
+            DOMAIN=$(echo $APP_URL | awk -F/ '{print $3}')
+            curl -L "$APP_URL/favicon.ico" -o logo.png || true
+
+            if [ ! -s logo.png ]; then
+                curl -L "https://www.google.com/s2/favicons?sz=512&domain=$DOMAIN" -o logo.png
+            fi
+            fi
+
+            # validar
+            if [ ! -s logo.png ]; then
+            echo "❌ Não foi possível obter logo"
+            exit 1
+            fi
+
+            # -----------------------------
+            # 🎨 GERAR ÍCONE
+            # -----------------------------
+            convert logo.png -resize 1024x1024 assets/icon.png
+
+            # -----------------------------
+            # 🎨 EXTRAIR COR PRINCIPAL
+            # -----------------------------
+            COLOR=$(convert assets/icon.png -scale 1x1\! -format '%[hex:p{0,0}]' info:)
+            echo "🎨 Cor detectada: #$COLOR"
+
+            echo "APP_COLOR=#${COLOR}" >> $GITHUB_ENV
+
+            # -----------------------------
+            # 🌊 GERAR SPLASH
+            # -----------------------------
+            convert -size 2732x2732 canvas:"#${COLOR}" \
+            -gravity center assets/icon.png \
+            -resize 512x512 \
+            -composite assets/splash.png
+
+            echo "✅ Branding gerado:"
+            ls -la assets
+
+
 
       # ⚙️ Setup Capacitor (FIX DEFINITIVO)
       - name: Setup Capacitor
@@ -107,6 +184,9 @@ jobs:
         run: |
              cd app
              npx cap sync android
+
+
+             
 
 
       # 🔥 WebView nativa (SEM IFRAME)
