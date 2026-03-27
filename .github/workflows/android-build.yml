@@ -1,4 +1,4 @@
-name: Android Build (HTML PRO - Blindado v4)
+name: Android Build (HTML PRO - Blindado v4 - MonoCrossOver)
 
 on:
   workflow_dispatch:
@@ -10,8 +10,8 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      APP_NAME: MeuApp
-      APP_ID: com.meuapp.app
+      APP_NAME: MonoCrossOver
+      APP_ID: com.monocrossover.app
 
     steps:
       - name: Checkout code
