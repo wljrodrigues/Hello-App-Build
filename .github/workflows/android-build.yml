@@ -129,10 +129,10 @@ jobs:
       # ============================================
       # 🎨 GENERATE ICONS & SPLASH (AUTO DETECT)
       # ============================================
-- name: Generate Assets
-  run: |
+      - name: Generate Assets
+        run: |
 
-    echo "🔍 Procurando assets..."
+          echo "🔍 Procurando assets..."  
 
     find . -iname "icon.png"
     find . -iname "splash.png"
