@@ -1,9 +1,10 @@
-name: Android Build (HTML PRO - Blindado v4 - MonoCrossOver)
+name: Android Build PRO (Play Store Ready)
 
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches:
+      - main
 
 jobs:
   build:
@@ -14,35 +15,54 @@ jobs:
       APP_ID: com.monocrossover.app
 
     steps:
+
+      # ============================================
+      # 🚀 CHECKOUT
+      # ============================================
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # ============================================
+      # 🟢 NODE
+      # ============================================
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: 22
 
+      # ============================================
+      # ☕ JAVA
+      # ============================================
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: temurin
+          java-version: 21
 
+      # ============================================
+      # 🤖 ANDROID SDK
+      # ============================================
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # 🔍 Validar projeto
-      - name: Check index.html
+      # ============================================
+      # 🔍 VALIDAR HTML
+      # ============================================
+      - name: Validate project
         run: |
           if [ ! -f "index.html" ]; then
-            echo "❌ index.html não encontrado!"
+            echo "❌ index.html não encontrado"
             exit 1
           fi
 
-      # 📁 Copiar arquivos limpos
-      - name: Prepare clean web assets
+      # ============================================
+      # 📁 PREPARAR WWW
+      # ============================================
+      - name: Prepare web assets
         run: |
-          mkdir www
+          rm -rf www
+          mkdir -p www
+
           rsync -av ./ www/ \
             --exclude node_modules \
             --exclude .git \
@@ -52,95 +72,206 @@ jobs:
             --exclude package.json \
             --exclude package-lock.json
 
-      # ⚙️ Setup Capacitor
-      - name: Setup Capacitor
-        run: |
-          npm init -y
-          npm install @capacitor/core @capacitor/cli @capacitor/android @capacitor/assets
+          echo "✅ Arquivos preparados"
 
-          npx cap init "$APP_NAME" "$APP_ID" --web-dir "www"
+      # ============================================
+      # 📦 PACKAGE.JSON LIMPO
+      # ============================================
+      - name: Create package.json
+        run: |
+          cat > package.json <<EOF
+          {
+            "name": "android-app",
+            "version": "1.0.0",
+            "private": true
+          }
+          EOF
+
+      # ============================================
+      # ⚙️ INSTALAR CAPACITOR
+      # ============================================
+      - name: Install Capacitor
+        run: |
+          npm install \
+            @capacitor/core \
+            @capacitor/cli \
+            @capacitor/android \
+            @capacitor/assets
+
+      # ============================================
+      # ⚙️ CRIAR CAPACITOR CONFIG
+      # ============================================
+      - name: Create Capacitor Config
+        run: |
+          cat > capacitor.config.ts <<EOF
+          import type { CapacitorConfig } from '@capacitor/cli';
+
+          const config: CapacitorConfig = {
+            appId: '${APP_ID}',
+            appName: '${APP_NAME}',
+            webDir: 'www',
+            bundledWebRuntime: false,
+            android: {
+              allowMixedContent: true
+            }
+          };
+
+          export default config;
+          EOF
+
+      # ============================================
+      # 🤖 ADD ANDROID
+      # ============================================
+      - name: Add Android Platform
+        run: |
           npx cap add android
 
-      # 🎨 Gerar ícones e splash
-      - name: Generate icons and splash
+      # ============================================
+      # 🎨 GERAR ICONES E SPLASH
+      # ============================================
+      - name: Generate Assets
         run: |
-          if [ -d "assets" ]; then
-            echo "🎨 Gerando assets..."
-            npx @capacitor/assets generate --android
-          else
-            echo "⚠️ Pasta assets não encontrada"
+          mkdir -p assets
+
+          if [ ! -f "assets/icon.png" ]; then
+            echo "⚠️ icon.png não encontrado"
           fi
 
-      # 🔄 Sync Capacitor
-      - name: Sync Capacitor
-        run: npx cap sync android
+          if [ ! -f "assets/splash.png" ]; then
+            echo "⚠️ splash.png não encontrado"
+          fi
 
-      # 🔐 Validar secret
-      - name: Validate KEYSTORE_BASE64
+          if [ -f "assets/icon.png" ] || [ -f "assets/splash.png" ]; then
+            npx @capacitor/assets generate --android
+          fi
+
+      # ============================================
+      # 🔄 SYNC
+      # ============================================
+      - name: Sync Capacitor
+        run: |
+          npx cap sync android
+
+      # ============================================
+      # 🔐 VALIDAR SECRETS
+      # ============================================
+      - name: Validate Secrets
         run: |
           if [ -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
-            echo "❌ SECRET KEYSTORE_BASE64 não definido!"
+            echo "❌ KEYSTORE_BASE64 ausente"
             exit 1
           fi
 
-      # 🔐 Keystore
+          if [ -z "${{ secrets.KEY_ALIAS }}" ]; then
+            echo "❌ KEY_ALIAS ausente"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.KEY_PASSWORD }}" ]; then
+            echo "❌ KEY_PASSWORD ausente"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.STORE_PASSWORD }}" ]; then
+            echo "❌ STORE_PASSWORD ausente"
+            exit 1
+          fi
+
+          echo "✅ Secrets OK"
+
+      # ============================================
+      # 🔐 DECODE KEYSTORE
+      # ============================================
       - name: Setup Keystore
         run: |
           mkdir -p android/app
+
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
 
+          if [ ! -f android/app/keystore.jks ]; then
+            echo "❌ Falha ao criar keystore"
+            exit 1
+          fi
+
           SIZE=$(stat -c%s android/app/keystore.jks)
+
           if [ "$SIZE" -lt 1000 ]; then
-            echo "❌ Keystore inválida!"
+            echo "❌ Keystore inválida"
             exit 1
           fi
 
           echo "✅ Keystore OK ($SIZE bytes)"
 
+      # ============================================
+      # 🔢 VERSIONAMENTO AUTOMÁTICO
+      # ============================================
+      - name: Update Version Code
+        run: |
+          VERSION_CODE=$(date +%s)
+          VERSION_NAME="1.$(date +%Y%m%d).$(date +%H%M)"
+
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+          echo "📦 VERSION_CODE=$VERSION_CODE"
+          echo "📦 VERSION_NAME=$VERSION_NAME"
+
+      # ============================================
+      # 🛠️ PATCH BUILD.GRADLE
+      # ============================================
+      - name: Patch build.gradle
+        run: |
+          sed -i "s/versionCode.*/versionCode $VERSION_CODE/" android/app/build.gradle
+          sed -i "s/versionName \".*\"/versionName \"$VERSION_NAME\"/" android/app/build.gradle
+
+      # ============================================
+      # 🔧 GRADLE EXECUTABLE
+      # ============================================
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      # 🎨 Cor do app
-      - name: Customize colors
-        run: |
-          sed -i 's/#6200ee/#0f172a/g' android/app/src/main/res/values/colors.xml || true
-
-      # 🔍 Debug
-      - name: Debug files
-        run: ls -la android/app
-
-      # 🚀 Build AAB (PLAY STORE)
-      - name: Build AAB (Release)
+      # ============================================
+      # 🚀 BUILD AAB
+      # ============================================
+      - name: Build AAB
         working-directory: android
         run: |
           KEYSTORE_PATH=$(realpath app/keystore.jks)
 
+          echo "📁 Keystore: $KEYSTORE_PATH"
+
           ./gradlew bundleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
-            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+            -Pandroid.injected.signing.store.password="${{ secrets.STORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
 
-      # 🚀 Build APK (opcional)
-      - name: Build APK (Release)
+      # ============================================
+      # 🚀 BUILD APK
+      # ============================================
+      - name: Build APK
         working-directory: android
         run: |
           KEYSTORE_PATH=$(realpath app/keystore.jks)
 
           ./gradlew assembleRelease \
             -Pandroid.injected.signing.store.file="$KEYSTORE_PATH" \
-            -Pandroid.injected.signing.store.password=${{ secrets.STORE_PASSWORD }} \
-            -Pandroid.injected.signing.key.alias=${{ secrets.KEY_ALIAS }} \
-            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+            -Pandroid.injected.signing.store.password="${{ secrets.STORE_PASSWORD }}" \
+            -Pandroid.injected.signing.key.alias="${{ secrets.KEY_ALIAS }}" \
+            -Pandroid.injected.signing.key.password="${{ secrets.KEY_PASSWORD }}"
 
-      # 📦 Upload AAB
+      # ============================================
+      # 📦 UPLOAD AAB
+      # ============================================
       - name: Upload AAB
         uses: actions/upload-artifact@v4
         with:
           name: app-release-aab
           path: android/app/build/outputs/bundle/release/*.aab
 
-      # 📦 Upload APK
+      # ============================================
+      # 📦 UPLOAD APK
+      # ============================================
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
