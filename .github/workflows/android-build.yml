@@ -127,48 +127,22 @@ jobs:
           npx cap add android
 
       # ============================================
-      # 🎨 GENERATE ICONS & SPLASH (AUTO DETECT)
+      # 🎨 GERAR ICONES E SPLASH
       # ============================================
       - name: Generate Assets
         run: |
-
-          echo "🔍 Procurando assets..."  
-
-          find . -iname "icon.png"
-          find . -iname "splash.png"
-
-          ICON=$(find . -iname "icon.png" | head -n 1)
-          SPLASH=$(find . -iname "splash.png" | head -n 1)
-
-          if [ -z "$ICON" ]; then
-            echo "⚠️ icon.png não encontrado"
-          else
-            echo "✅ ICON: $ICON"
-          fi
-
-          if [ -z "$SPLASH" ]; then
-            echo "⚠️ splash.png não encontrado"
-          else
-            echo "✅ SPLASH: $SPLASH"
-          fi
-
           mkdir -p assets
 
-          if [ ! -z "$ICON" ]; then
-            cp "$ICON" assets/icon.png
+          if [ ! -f "assets/icon.png" ]; then
+            echo "⚠️ icon.png não encontrado"
           fi
 
-          if [ ! -z "$SPLASH" ]; then
-            cp "$SPLASH" assets/splash.png
+          if [ ! -f "assets/splash.png" ]; then
+            echo "⚠️ splash.png não encontrado"
           fi
-
-          ls -la assets
 
           if [ -f "assets/icon.png" ] || [ -f "assets/splash.png" ]; then
-            echo "🎨 Gerando assets Android..."
             npx @capacitor/assets generate --android
-          else
-            echo "⚠️ Nenhum asset encontrado"
           fi
 
       # ============================================
